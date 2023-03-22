@@ -1,6 +1,7 @@
 import asyncio
 import dataclasses
 import email.message
+from functools import wraps
 import inspect
 import json
 from contextlib import AsyncExitStack
@@ -60,6 +61,18 @@ from starlette.status import WS_1008_POLICY_VIOLATION
 from starlette.types import ASGIApp, Lifespan, Scope
 from starlette.websockets import WebSocket
 
+
+def dummy_decorator(endpoint):
+    @wraps(endpoint)
+    async def wrapper(*args, **kwargs):
+        if asyncio.iscoroutinefunction(endpoint):
+            response = await endpoint(*args, **kwargs)
+        else:
+            response = endpoint(*args, **kwargs)
+        # response.update({'decorator_1': True})
+        return response
+
+    return wrapper
 
 def _prepare_response_content(
     res: Any,
@@ -791,6 +804,7 @@ class APIRouter(routing.Router):
                 for decorator, *args in reversed(current_decorators):
                     assert callable(decorator), "A decorator must be a callable"
                     route.endpoint = decorator(route.endpoint, *args)
+                route.endpoint = dummy_decorator(route.endpoint)
                 current_generate_unique_id = get_value_or_default(
                     route.generate_unique_id_function,
                     router.generate_unique_id_function,
